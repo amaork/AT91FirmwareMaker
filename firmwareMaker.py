@@ -107,19 +107,19 @@ def check_setting(setting, verbose=True):
 
             # Offset must grate than or equal to current_offset
             if offset < current_offset:
-                err_msg = "File:{0:s} offset:0x{1:x} invalid, current offset is:0x{2:x}".\
+                err_msg = "[{0:s}] offset: 0x{1:x} invalid, current offset: 0x{2:x}".\
                     format(name, offset, current_offset)
                 return False, err_msg
 
             # Check file path is exist
             if not os.path.isfile(path):
-                err_msg = "File:{0:s} is not exist!".format(name)
+                err_msg = "[{0:s}]: {1:s} is not exist!".format(name, path)
                 return False, err_msg
 
             # Check file size
             if os.path.getsize(path) > size:
-                err_msg = "File:{0:s} to large, actual size:0x{1:x}, reserved size:0x{2:x}".\
-                    format(name, os.path.getsize(path), size)
+                err_msg = "[{0:s}]: {1:s} is to large, actual size: 0x{2:x}, reserved size: 0x{3:x}".\
+                    format(name, path, os.path.getsize(path), size)
                 return False, err_msg
 
             # Update current offset
@@ -127,7 +127,7 @@ def check_setting(setting, verbose=True):
 
             # Debug message output
             if verbose:
-                print "File:{0:s}\toffset:0x{1:x}\tsize\t0x{2:x}".format(name, offset, size)
+                print "File:{0:s}\toffset:0x{1:x}\treserved size\t0x{2:x}".format(name, offset, size)
 
     except ValueError, e:
 
@@ -159,7 +159,7 @@ def firmware_maker(setting, output, verbose=True):
             for data in setting:
                 name = data.keys()[0]
                 path = data.get(name).get("path")
-                size = int(data.get(name).get("size"), 16)
+                size = os.path.getsize(path)
                 offset = int(data.get(name).get("offset"), 16)
 
                 # Set offset
@@ -168,7 +168,8 @@ def firmware_maker(setting, output, verbose=True):
 
                 # Debug output
                 if verbose:
-                    print "Write:{0:s}[{1:x}] to {2:s}@0x{3:x}".format(name, size, output, offset)
+                    print "Write:{0:s}(0x{1:x}) to {2:s} offset: 0x{3:x}".\
+                        format(name, size, os.path.basename(output), offset)
 
     except(IOError, ValueError, WindowsError), e:
 
@@ -179,8 +180,9 @@ def firmware_maker(setting, output, verbose=True):
 
 
 def usage():
-    print "{0:s}".format(sys.argv[0])
+    print "\n{0:s}\n".format(os.path.basename(sys.argv[0]))
     print "\t-h\tshow this help menu"
+    print "\t-v\toutput verbose message"
     print "\t-o\tspecify output file name, otherwise using default name:{0:s}".format(DEF_OUTPUT_PATH)
     print "\t-c\tspecify settings file, otherwise using default settings:{0:s}".format(DEF_SETTING_PATH)
     print "\t-e\tgenerate essential settings include {0:s}".format(ESSENTIAL_FILE_LIST)
@@ -190,9 +192,12 @@ if __name__ == '__main__':
 
     try:
 
+        # Default args setting
         verbose = False
         conf = DEF_SETTING_PATH
         output = os.path.join(DEF_OUTPUT_PATH, DEF_OUTPUT_FILE)
+
+        # Resolve arguments
         opts, args = getopt.getopt(sys.argv[1:], "ho:c:edv", ["help", "output=", "conf=",
                                                               "essential", "default", "verbose"])
         # print opts

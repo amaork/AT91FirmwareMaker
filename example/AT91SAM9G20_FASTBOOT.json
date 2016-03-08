@@ -1,0 +1,23 @@
+[
+    {
+        "bootstrap": {
+            "path": "at91sam9g20ek-nandflashboot-3.1.bin",
+            "size": "0x04000",
+            "offset": "0x0"
+        }
+    }, 
+    {
+        "kernel": {
+            "path": "Image",
+            "size": "0x300000",
+            "offset": "0x100000"
+        }
+    }, 
+    {
+        "rootfs": {
+            "path": "rootfs_cramfs.bin",
+            "size": "0x400000",
+            "offset": "0x400000"
+        }
+    }
+]
