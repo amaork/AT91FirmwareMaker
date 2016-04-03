@@ -2,6 +2,8 @@
 
 import os
 import json
+import types
+
 
 
 __all__ = ['FirmwareMaker']
@@ -16,7 +18,7 @@ class FirmwareMaker(object):
     DEFAULT_FILE_LIST = ["bootstrap", "u-boot", "u-boot env", "dtb", "kernel", "rootfs"]
 
     @staticmethod
-    def generate_configure(file_list):
+    def generate_def_configure(file_list):
         """Generate default configure file
 
         :param file_list: firmware file lists
@@ -107,13 +109,16 @@ class FirmwareMaker(object):
                 # print name, data
 
                 path = data.get(name).get("path")
-                size = int(data.get(name).get("size"), 16)
-                offset = int(data.get(name).get("offset"), 16)
+                size = data.get(name).get("size")
+                offset = data.get(name).get("offset")
+
+                size = size if isinstance(size, int) else int(size, 16)
+                offset = offset if isinstance(offset, int) else int(offset, 16)
 
                 # Offset must grate than or equal to current_offset
                 if offset < current_offset:
-                    err_msg = "[{0:s}] offset: 0x{1:x} invalid, current offset: 0x{2:x}".\
-                        format(name, offset, current_offset)
+                    err_msg = "[{0:s}] offset: 0x{1:x} invalid, current offset: 0x{2:x}, {3:d}".\
+                        format(name, offset, current_offset, current_offset)
                     return False, err_msg
 
                 # Check file path is exist
@@ -123,8 +128,8 @@ class FirmwareMaker(object):
 
                 # Check file size
                 if os.path.getsize(path) > size:
-                    err_msg = "[{0:s}]: {1:s} is to large, actual size: 0x{2:x}, reserved size: 0x{3:x}".\
-                        format(name, path, os.path.getsize(path), size)
+                    err_msg = "[{0:s}]: {1:s} is to large, actual size: 0x{2:x}, reserved size: 0x{3:x}, {4:d}".\
+                        format(name, path, os.path.getsize(path), size, size)
                     return False, err_msg
 
                 # Update current offset
@@ -134,9 +139,9 @@ class FirmwareMaker(object):
                 if verbose:
                     print "File:{0:s}\toffset:0x{1:x}\treserved size\t0x{2:x}".format(name, offset, size)
 
-        except ValueError, e:
+        except (TypeError, ValueError, AttributeError), e:
 
-            err_msg = e
+            err_msg = "{0:s}".format(e)
             return False, err_msg
 
         finally:
@@ -145,6 +150,18 @@ class FirmwareMaker(object):
                 print err_msg
 
         return True, ""
+
+    @staticmethod
+    def generate_configure(name, path, size, offset):
+        if not isinstance(name, str) or not isinstance(path, types.StringTypes):
+            print "TypeError:{0:s}, {0:s}".format(type(name), type(offset))
+            return None
+
+        if not isinstance(size, int) or not isinstance(offset, int):
+            print "TypeError:{0:s}, {0:s}".format(type(name), type(offset))
+            return None
+
+        return {name: {"path": path, "size": "0x{0:x}".format(size), "offset": "0x{0:x}".format(offset)}}
 
     @staticmethod
     def make_firmware(setting, output, verbose=True):
@@ -165,7 +182,8 @@ class FirmwareMaker(object):
                     name = data.keys()[0]
                     path = data.get(name).get("path")
                     size = os.path.getsize(path)
-                    offset = int(data.get(name).get("offset"), 16)
+                    offset = data.get(name).get("offset")
+                    offset = offset if isinstance(offset, int) else int(offset, 16)
 
                     # Set offset
                     fw.seek(offset, os.SEEK_SET)

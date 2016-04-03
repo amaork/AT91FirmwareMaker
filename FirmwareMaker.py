@@ -41,10 +41,10 @@ if __name__ == '__main__':
                     print "Configure file:{0:s} is not exist!".format(argument)
                     sys.exit()
             elif option in ("-e", "--essential"):
-                FirmwareMaker.generate_configure(FirmwareMaker.ESSENTIAL_FILE_LIST)
+                FirmwareMaker.generate_def_configure(FirmwareMaker.ESSENTIAL_FILE_LIST)
                 sys.exit()
             elif option in ("-d", "--default"):
-                FirmwareMaker.generate_configure(FirmwareMaker.DEFAULT_FILE_LIST)
+                FirmwareMaker.generate_def_configure(FirmwareMaker.DEFAULT_FILE_LIST)
                 sys.exit()
             elif option in ("-v", "--verbose"):
                 verbose = True
