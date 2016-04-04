@@ -3,7 +3,7 @@
 import os
 import json
 import types
-
+import hashlib
 
 
 __all__ = ['FirmwareMaker']
@@ -16,6 +16,33 @@ class FirmwareMaker(object):
     DEF_SETTING_PATH = "settings.json"
     ESSENTIAL_FILE_LIST = ["bootstrap", "kernel", "rootfs"]
     DEFAULT_FILE_LIST = ["bootstrap", "u-boot", "u-boot env", "dtb", "kernel", "rootfs"]
+
+    @staticmethod
+    def str2number(string):
+        if not isinstance(string, types.StringTypes):
+            print "TypeError:{0:s}".format(type(string))
+            return 0
+
+        try:
+
+            string = string.lower()
+
+            if string.startswith("0b"):
+                return int(string, 2)
+            elif string.startswith("0x"):
+                return int(string, 16)
+            elif string.startswith("0"):
+                return int(string, 8)
+            elif string.endswith("k") or string.endswith("kb"):
+                return int(string.split("k")[0]) * 1024
+            elif string.endswith("m") or string.endswith("mb"):
+                return int(string.split("m")[0]) * 1024 * 1024
+            else:
+                return int(string)
+
+        except ValueError, e:
+            print "Str2number error:{0:s}, {1:s}".format(string, e)
+            return 0
 
     @staticmethod
     def generate_def_configure(file_list):
@@ -42,8 +69,8 @@ class FirmwareMaker(object):
 
             # Generate default setting
             default_settings.append({file_name: {
-                "offset": "{0:x}".format(offset),
-                "size": "{0:x}".format(size),
+                "offset": "0x{0:x}".format(offset),
+                "size": "0x{0:x}".format(size),
                 "path": "{0:s}.bin".format(file_name)}})
 
             # Update offset
@@ -78,7 +105,7 @@ class FirmwareMaker(object):
         return True, setting
 
     @staticmethod
-    def check_configure(setting, verbose=True):
+    def check_configure(setting, verbose=False):
         """Check settings
 
         :param setting: setting data
@@ -111,9 +138,8 @@ class FirmwareMaker(object):
                 path = data.get(name).get("path")
                 size = data.get(name).get("size")
                 offset = data.get(name).get("offset")
-
-                size = size if isinstance(size, int) else int(size, 16)
-                offset = offset if isinstance(offset, int) else int(offset, 16)
+                size = size if isinstance(size, int) else FirmwareMaker.str2number(size)
+                offset = offset if isinstance(offset, int) else FirmwareMaker.str2number(offset)
 
                 # Offset must grate than or equal to current_offset
                 if offset < current_offset:
@@ -164,13 +190,13 @@ class FirmwareMaker(object):
         return {name: {"path": path, "size": "0x{0:x}".format(size), "offset": "0x{0:x}".format(offset)}}
 
     @staticmethod
-    def make_firmware(setting, output, verbose=True):
+    def make_firmware(setting, output, verbose=False):
         """Firmware make
 
         :param setting: settings
         :param output:firmware output file name
         :param verbose: debug output options
-        :return:
+        :return: result, err_or_md5
         """
         try:
 
@@ -183,7 +209,7 @@ class FirmwareMaker(object):
                     path = data.get(name).get("path")
                     size = os.path.getsize(path)
                     offset = data.get(name).get("offset")
-                    offset = offset if isinstance(offset, int) else int(offset, 16)
+                    offset = offset if isinstance(offset, int) else FirmwareMaker.str2number(offset)
 
                     # Set offset
                     fw.seek(offset, os.SEEK_SET)
@@ -194,9 +220,14 @@ class FirmwareMaker(object):
                         print "Write:{0:s}(0x{1:x}) to {2:s} offset: 0x{3:x}".\
                             format(name, size, os.path.basename(output), offset)
 
+            # Calculate file md5
+            md5 = hashlib.md5()
+            md5.update(open(output, "rb").read())
+
         except(IOError, ValueError, OSError), e:
 
-            print "Maker firmware error:", e
-            return False
+            error = "Maker firmware error:{0:s}".format(e)
+            return False, error
 
-        return True
+        # Return result and file md5
+        return True, md5.hexdigest()

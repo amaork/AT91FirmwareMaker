@@ -69,11 +69,12 @@ if __name__ == '__main__':
             sys.exit()
 
         # Make firmware
-        if not FirmwareMaker.make_firmware(settings, output, verbose):
-            print "Generate firmware error!"
+        ret, err_or_md5 = FirmwareMaker.make_firmware(settings, output, verbose)
+        if not ret:
+            print "Generate firmware error:{0:s}".format(err_or_md5)
             sys.exit()
 
-        print "Success, {0:s} ===> {1:s}".format(conf, output)
+        print "Success, {0:s} ===> {1:s}, md5: {2:s}".format(conf, output, err_or_md5)
 
     except getopt.GetoptError, error:
 

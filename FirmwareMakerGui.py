@@ -198,11 +198,14 @@ class FirmwareMakerGui(QWidget):
             return
 
         # Start make firmware
-        if not self.fwmaker.make_firmware(configure, "firmware.bin"):
-            QMessageBox.critical(self, self.tr("Error"), self.tr(error))
+        result, err_or_md5 = self.fwmaker.make_firmware(configure, "firmware.bin")
+
+        if not result:
+            QMessageBox.critical(self, self.tr("Error"), self.tr(err_or_md5))
             return
         else:
-            QMessageBox.information(self, self.tr("Success"), self.tr("Firmware generate success!"))
+            QMessageBox.information(self, self.tr("Success"),
+                                    self.tr("Firmware generate success!\nMd5: {0:s}".format(err_or_md5)))
 
 
 if __name__ == '__main__':
