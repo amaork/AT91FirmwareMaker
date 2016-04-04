@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import os
+import sys
+import json
 from PySide.QtGui import *
 from PySide.QtCore import *
 from fwmaker import FirmwareMaker
@@ -17,6 +18,7 @@ class FirmwareMakerGui(QWidget):
 
         self.components = list()
         self.__init_ui()
+        self.__init_data()
         self.__init_signal_slots()
 
     def __init_ui(self):
@@ -49,6 +51,51 @@ class FirmwareMakerGui(QWidget):
         self.setFixedSize(self.def_width, self.def_height)
         self.setWindowTitle("AT91 FirmwareMaker")
 
+    def __init_data(self):
+        # Load configure file
+        result, configure = self.fwmaker.load_configure(self.fwmaker.DEF_SETTING_PATH)
+        if not result:
+            return
+
+        # Check configure file
+        result, error = self.fwmaker.check_configure(configure)
+        if not result:
+            print "Load default setting: {0:s}, error: {1:s}".format(self.fwmaker.DEF_SETTING_PATH, error)
+            return
+
+        # Sync ui
+        self.__sync_ui(configure)
+
+    def __init_signal_slots(self):
+        self.add.clicked.connect(self.slot_add_component)
+        self.generate.clicked.connect(self.slot_generate_firmware)
+
+    def __sync_ui(self, configure):
+        try:
+
+            for component in configure:
+                name = component.keys()[0]
+                setting = component.get(name)
+                path = setting.get("path")
+                size = setting.get("size")
+                offset = setting.get("offset")
+                size = size if isinstance(size, int) else self.fwmaker.str2number(size)
+                offset = offset if isinstance(offset, int) else self.fwmaker.str2number(offset)
+
+                for idx in range(self.component_list.count()):
+                    if self.component_list.itemText(idx) == name:
+                        self.component_list.setCurrentIndex(idx)
+                        break
+
+                # Create ui elements
+                self.slot_add_component()
+
+                # Setting ui data
+                self.__set_component_setting(name, path, size, offset)
+
+        except StandardError, e:
+            print "Sync ui error:{0:s}".format(e)
+
     def __flush_ui(self, key=None):
 
         if isinstance(key, str):
@@ -65,20 +112,34 @@ class FirmwareMakerGui(QWidget):
         return row * self.layout.columnCount() + column
 
     def __get_elements(self, element):
-        for row in range(self.layout.rowCount()):
-            for column in range(self.layout.columnCount()):
-                item = self.layout.itemAt(self.__get_element_id(row, column))
-                if not isinstance(item, QLayoutItem):
-                    continue
+        try:
 
-                if item.widget() == element:
-                    name = self.components[row]
-                    elements = [self.layout.itemAt(self.__get_element_id(row, x)).widget()
-                                for x in range(self.layout.columnCount())]
+            for row in range(self.layout.rowCount()):
+                for column in range(self.layout.columnCount()):
+                    item = self.layout.itemAt(self.__get_element_id(row, column))
+                    if not isinstance(item, QLayoutItem):
+                        continue
 
-                    return name, elements
+                    if item.widget() == element:
+                        name = self.components[row]
+                        elements = [self.layout.itemAt(self.__get_element_id(row, x)).widget()
+                                    for x in range(self.layout.columnCount())]
+
+                        return name, elements
+
+        except StandardError, e:
+            print "Get elements error:{0:s}".format(e)
+            return None, None
 
         return None, None
+
+    def __get_component_elements(self, component):
+        if component not in self.components:
+            return None
+
+        row = self.components.index(component)
+        return [self.layout.itemAt(self.__get_element_id(row, column)).widget()
+                for column in range(self.layout.columnCount())]
 
     def __get_component_setting(self, component):
         if component not in self.components:
@@ -86,32 +147,59 @@ class FirmwareMakerGui(QWidget):
 
         try:
 
-            row = self.components.index(component)
-            path = self.layout.itemAt(self.__get_element_id(row, 0)).widget().property("path")
-            size = self.layout.itemAt(self.__get_element_id(row, 2)).widget().value() * 1024
-            offset = self.layout.itemAt(self.__get_element_id(row, 4)).widget().value() * 1024
+            path = None
+            size = None
+            offset = None
+            for element in self.__get_component_elements(component):
+                if isinstance(element, QObject):
+                    tag = element.property("tag")
+                    if tag == "path" and isinstance(element, QLabel):
+                        path = element.property("path")
+                    elif tag == "size" and isinstance(element, QSpinBox):
+                        size = element.value() * 1024
+                    elif tag == "offset" and isinstance(element, QSpinBox):
+                        offset = element.value() * 1024
 
             return path, size, offset
 
-        except AttributeError, e:
+        except StandardError, e:
 
             print "Get component setting error:{0:s}".format(e)
             return None
 
-    def __init_signal_slots(self):
-        self.add.clicked.connect(self.slot_add_component)
-        self.generate.clicked.connect(self.slot_generate_firmware)
+    def __set_component_setting(self, component, path, size, offset):
+        try:
+
+            for element in self.__get_component_elements(component):
+                if isinstance(element, QObject):
+                    tag = element.property("tag")
+                    if tag == "path" and isinstance(element, QLabel):
+                        element.setProperty("path", path)
+                    elif tag == "size" and isinstance(element, QSpinBox):
+                        element.setValue(size / 1024)
+                    elif tag == "offset" and isinstance(element, QSpinBox):
+                        element.setValue(offset / 1024)
+
+        except StandardError, e:
+            print "Set component setting error:{0:s}".format(e)
+            return False
+
+        return True
 
     def slot_add_component(self):
         row = self.layout.rowCount()
         component = self.component_list.currentText().encode("ascii")
 
         file_label = QLabel(component[0].upper() + component[1:])
+        file_label.setProperty("tag", "path")
+
         file_size = QSpinBox()
+        file_size.setProperty("tag", "size")
         file_size.setRange(1, self.SINGLE_FILE_MAXSIZE)
         size_label = QLabel("size (KB):")
 
         file_offset = QSpinBox()
+        file_offset.setProperty("tag", "offset")
         file_offset.setMaximum(self.SINGLE_FILE_MAXSIZE * row)
         offset_label = QLabel("offset (KB)")
 
@@ -158,17 +246,22 @@ class FirmwareMakerGui(QWidget):
         if not name or not elements:
             return
 
+        # Get file path and size
         path, _ = QFileDialog.getOpenFileName(self, self.tr("Select {0:s}".format(name)), "", self.tr("All (*)"))
         if not os.path.isfile(path):
             return
+        else:
+            file_size = (os.path.getsize(path) / 1024) + 1
 
-        label = elements[0]
-        label.setProperty("path", path)
-
-        file_size = (os.path.getsize(path) / 1024) + 1
-        size = elements[2]
-        size.setRange(file_size, file_size + self.SINGLE_FILE_MAXSIZE)
-        size.setValue(file_size)
+        # Set file path and size
+        for element in elements:
+            if isinstance(element, QObject):
+                tag = element.property("tag")
+                if tag == "path" and isinstance(element, QLabel):
+                    element.setProperty("path", path)
+                elif tag == "size" and isinstance(element, QSpinBox):
+                    element.setRange(file_size, file_size + self.SINGLE_FILE_MAXSIZE)
+                    element.setValue(file_size)
 
     def slot_generate_firmware(self):
         configure = list()
@@ -197,13 +290,22 @@ class FirmwareMakerGui(QWidget):
             QMessageBox.critical(self, self.tr("Error"), self.tr(error))
             return
 
+        # Select output path
+        output, _ = QFileDialog.getSaveFileName(self, self.tr("Select firmware save path:"), "",
+                                                self.tr("Firmware (*.bin)"))
+        if len(output) == 0:
+            return
+
         # Start make firmware
-        result, err_or_md5 = self.fwmaker.make_firmware(configure, "firmware.bin")
+        result, err_or_md5 = self.fwmaker.make_firmware(configure, output)
 
         if not result:
             QMessageBox.critical(self, self.tr("Error"), self.tr(err_or_md5))
             return
         else:
+            with open(self.fwmaker.DEF_SETTING_PATH, "wb") as fp:
+                    json.dump(configure, fp, indent=4)
+
             QMessageBox.information(self, self.tr("Success"),
                                     self.tr("Firmware generate success!\nMd5: {0:s}".format(err_or_md5)))
 
