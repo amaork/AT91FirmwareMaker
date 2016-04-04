@@ -24,16 +24,21 @@ class FirmwareMakerGui(QWidget):
     def __init_ui(self):
         self.component_list = QComboBox()
         self.component_list.addItems(self.fwmaker.DEFAULT_FILE_LIST)
-        self.add = QPushButton("Add component")
-        self.generate = QPushButton("Generate firmware")
+        self.add = QPushButton("Add")
+        self.load = QPushButton("Load")
+        self.store = QPushButton("Save as")
+        self.generate = QPushButton("Generate")
         self.generate.setDisabled(True)
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(QLabel("Components"))
-        top_layout.addWidget(QSplitter())
         top_layout.addWidget(self.component_list)
         top_layout.addWidget(QSplitter())
         top_layout.addWidget(self.add)
+        top_layout.addWidget(QSplitter())
+        top_layout.addWidget(self.load)
+        top_layout.addWidget(QSplitter())
+        top_layout.addWidget(self.store)
         top_layout.addWidget(QSplitter())
         top_layout.addWidget(self.generate)
 
@@ -68,11 +73,30 @@ class FirmwareMakerGui(QWidget):
 
     def __init_signal_slots(self):
         self.add.clicked.connect(self.slot_add_component)
+        self.load.clicked.connect(self.slot_load_configure)
+        self.store.clicked.connect(self.slot_store_configure)
         self.generate.clicked.connect(self.slot_generate_firmware)
 
     def __sync_ui(self, configure):
         try:
 
+            # Remove old elements from layout
+            for idx in range(self.layout.count()):
+                item = self.layout.itemAt(0)
+                if isinstance(item, QLayoutItem):
+                    widget_ = item.widget()
+                    if isinstance(widget_, QWidget):
+                        self.layout.removeWidget(widget_)
+                        widget_.setHidden(True)
+                        del widget_
+
+            for idx in range(self.component_list.count()):
+                self.component_list.removeItem(0)
+
+            self.components = list()
+            self.component_list.addItems(self.fwmaker.DEFAULT_FILE_LIST)
+
+            # According configure add new elements
             for component in configure:
                 name = component.keys()[0]
                 setting = component.get(name)
@@ -186,6 +210,35 @@ class FirmwareMakerGui(QWidget):
 
         return True
 
+    def __get_current_setting(self):
+        configure = list()
+
+        # Get component configure data
+        for component in self.components:
+            setting = self.__get_component_setting(component)
+            if not setting:
+                QMessageBox.warning(self, self.tr("Warning"), self.tr("Please check {0:s} setting".format(component)))
+                return None
+
+            if not setting[0]:
+                QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select {0:s} files first".format(component)))
+                return None
+
+            conf = self.fwmaker.generate_configure(component, setting[0], setting[1], setting[2])
+            if not conf:
+                QMessageBox.warning(self, self.tr("Warning"), self.tr("Generate {0:s} configure error".format(component)))
+                return None
+
+            configure.append(conf)
+
+        # Check configure data
+        result, error = self.fwmaker.check_configure(configure)
+        if not result:
+            QMessageBox.critical(self, self.tr("Error"), self.tr(error))
+            return None
+
+        return configure
+
     def slot_add_component(self):
         row = self.layout.rowCount()
         component = self.component_list.currentText().encode("ascii")
@@ -237,6 +290,40 @@ class FirmwareMakerGui(QWidget):
         self.__flush_ui(name)
         self.components.remove(name)
 
+    def slot_load_configure(self):
+        path, _ = QFileDialog.getOpenFileName(self, self.tr("Select configure file"), "", self.tr("Json (*.json)"))
+        if not os.path.isfile(path):
+            return
+
+        result, configure = self.fwmaker.load_configure(path)
+        if not result:
+            QMessageBox.critical(self, self.tr("Load error"), self.tr("Error:{0:s}".format(configure)))
+            return
+
+        result, error = self.fwmaker.check_configure(configure)
+        if not result:
+            QMessageBox.critical(self, self.tr("Check error"), self.tr("Error:{0:s}".format(error)))
+            return
+
+        # Sync ui
+        self.__sync_ui(configure)
+
+    def slot_store_configure(self):
+        configure = self.__get_current_setting()
+        if not configure:
+            return
+
+        save_path, _ = QFileDialog.getSaveFileName(self, self.tr("Select save as path"), "",
+                                                self.tr("Json (*.json)"))
+
+        if len(save_path) == 0:
+            return
+
+        with open(save_path, "wb") as fp:
+            json.dump(configure, fp, indent=4)
+
+        QMessageBox.information(self, self.tr("Success"), self.tr("Configure file save as success!"))
+
     def slot_get_select_file_path(self):
         sender = self.sender()
         if not isinstance(sender, QPushButton):
@@ -264,30 +351,8 @@ class FirmwareMakerGui(QWidget):
                     element.setValue(file_size)
 
     def slot_generate_firmware(self):
-        configure = list()
-
-        # Get component configure data
-        for component in self.components:
-            setting = self.__get_component_setting(component)
-            if not setting:
-                QMessageBox.warning(self, self.tr("Warning"), self.tr("Please check {0:s} setting".format(component)))
-                return
-
-            if not setting[0]:
-                QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select {0:s} files first".format(component)))
-                return
-
-            conf = self.fwmaker.generate_configure(component, setting[0], setting[1], setting[2])
-            if not conf:
-                QMessageBox.warning(self, self.tr("Warning"), self.tr("Generate {0:s} configure error".format(component)))
-                return
-
-            configure.append(conf)
-
-        # Check configure data
-        result, error = self.fwmaker.check_configure(configure)
-        if not result:
-            QMessageBox.critical(self, self.tr("Error"), self.tr(error))
+        configure = self.__get_current_setting()
+        if not configure:
             return
 
         # Select output path
