@@ -4,26 +4,26 @@
 ## 文件说明
 
 	|
-	|--- setup.py			# 程序打包脚本
-	|--- firmwareMaker.py	# Firmware Maker Tools
+	|--- fwmaker.py				# Firmware Maker 包
+	|--- FirmwareMaker.py		# Firmware Maker 命令行工具
+	|--- FirmwareMakerGui.py	# Firmware Maker Qt 图形界面工具
 	
 
 ## 打包说明
+	
+打包命令行工具：
 
-**Windows** 
+	pyinstaller -F -i icon.ico FirmwareMaker.py
+	
+打包图形界面工具
 
-使用 py2exe 首先将软件打包成 exe
-
-	python setup.py py2exe 
-
-最终会在 `dist` 目录中生成 `firmwareMaker.exe`, 也可以不打包直接使用 `python firmwareMaker.py` 执行
-
-**Linux/Mac OS X**
-
-	pyinstaller -F firmwareMaker.py
-
+	pyinstaller -F -w -i icon.ico FirmwareMakerGui.py
+		
+	
 
 ## 使用说明
+
+软件提供了命令行工具（FirmwareMaker）和的图形化操作工具（FirmwareMakerGui）根据需要使用。图形化工具提供：加载、另存为配置文件的操作，可以根据二进制文件大小，自动调节预置空间大小，可以根据需要预置不同的配置文件，用来生成不同的固件，一下将着重介绍命令行工具。
 
 ### 1、操作流程
 
@@ -57,22 +57,22 @@
     	{
         	"bootstrap": {
         	    "path": "at91sam9g20ek-nandflashboot-3.1.bin",
-        	    "size": "0x04000",
+        	    "size": "16K",
         	    "offset": "0x0"
         	}
     	},
     	{
         	"kernel": {
         	    "path": "Image",
-        	    "size": "0x300000",
-        	    "offset": "0x100000"
+        	    "size": "3M",
+        	    "offset": "1M"
         	}
     	},
     	{
         	"rootfs": {
         	    "path": "rootfs_cramfs.bin",
-        	    "size": "0x400000",
-        	    "offset": "0x400000"
+        	    "size": "4M",
+        	    "offset": "4M"
         	}
     	}
 	]

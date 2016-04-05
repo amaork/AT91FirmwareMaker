@@ -11,7 +11,6 @@ __all__ = ['FirmwareMaker']
 
 class FirmwareMaker(object):
 
-    DEF_OUTPUT_PATH = "firmware"
     DEF_OUTPUT_FILE = "firmware.bin"
     DEF_SETTING_PATH = "settings.json"
     ESSENTIAL_FILE_LIST = ["bootstrap", "kernel", "rootfs"]
@@ -199,9 +198,6 @@ class FirmwareMaker(object):
         :return: result, err_or_md5
         """
         try:
-
-            if not os.path.isdir(FirmwareMaker.DEF_OUTPUT_PATH):
-                os.makedirs(FirmwareMaker.DEF_OUTPUT_PATH)
 
             with open(output, "wb") as fw:
                 for data in setting:

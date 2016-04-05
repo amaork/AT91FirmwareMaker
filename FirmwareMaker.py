@@ -8,7 +8,7 @@ def usage():
     print "\n{0:s}\n".format(os.path.basename(sys.argv[0]))
     print "\t-h\tshow this help menu"
     print "\t-v\toutput verbose message"
-    print "\t-o\tspecify output file name, otherwise using default name:{0:s}".format(FirmwareMaker.DEF_OUTPUT_PATH)
+    print "\t-o\tspecify output file name, otherwise using default name:{0:s}".format(FirmwareMaker.DEF_OUTPUT_FILE)
     print "\t-c\tspecify settings file, otherwise using default settings:{0:s}".format(FirmwareMaker.DEF_SETTING_PATH)
     print "\t-e\tgenerate essential settings include {0:s}".format(FirmwareMaker.ESSENTIAL_FILE_LIST)
     print "\t-d\tgenerate default settings include {0:s}".format(FirmwareMaker.DEFAULT_FILE_LIST)
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         # Default args setting
         verbose = False
         conf = FirmwareMaker.DEF_SETTING_PATH
-        output = os.path.join(FirmwareMaker.DEF_OUTPUT_PATH, FirmwareMaker.DEF_OUTPUT_FILE)
+        output = FirmwareMaker.DEF_OUTPUT_FILE
 
         # Resolve arguments
         opts, args = getopt.getopt(sys.argv[1:], "ho:c:edv", ["help", "output=", "conf=",
@@ -33,7 +33,7 @@ if __name__ == '__main__':
                 usage()
                 sys.exit()
             elif option in ("-o", "--output") and len(argument):
-                output = os.path.join(FirmwareMaker.DEF_OUTPUT_PATH, argument)
+                output = argument
             elif option in ("-c", "--conf") and len(argument):
                 if os.path.isfile(argument):
                     conf = argument

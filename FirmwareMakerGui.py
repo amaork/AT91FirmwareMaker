@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import icon_rc
 from PySide.QtGui import *
 from PySide.QtCore import *
 from fwmaker import FirmwareMaker
@@ -55,6 +56,7 @@ class FirmwareMakerGui(QWidget):
         self.def_height = 120
         self.setFixedSize(self.def_width, self.def_height)
         self.setWindowTitle("AT91 FirmwareMaker")
+        self.setWindowIcon(QIcon(":/icon/icon.ico"))
 
     def __init_data(self):
         # Load configure file
