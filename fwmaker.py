@@ -17,30 +17,37 @@ class FirmwareMaker(object):
     DEFAULT_FILE_LIST = ["bootstrap", "u-boot", "u-boot env", "dtb", "kernel", "rootfs"]
 
     @staticmethod
-    def str2number(string):
-        if not isinstance(string, types.StringTypes):
-            print "TypeError:{0:s}".format(type(string))
+    def str2number(text):
+        if isinstance(text, int):
+            return text
+
+        if not isinstance(text, types.StringTypes):
+            print "TypeError:{0:s}".format(type(text))
             return 0
 
         try:
 
-            string = string.lower()
+            text = text.lower()
 
-            if string.startswith("0b"):
-                return int(string, 2)
-            elif string.startswith("0x"):
-                return int(string, 16)
-            elif string.startswith("0"):
-                return int(string, 8)
-            elif string.endswith("k") or string.endswith("kb"):
-                return int(string.split("k")[0]) * 1024
-            elif string.endswith("m") or string.endswith("mb"):
-                return int(string.split("m")[0]) * 1024 * 1024
+            if text.startswith("0b"):
+                return int(text, 2)
+            elif text.startswith("0x"):
+                return int(text, 16)
+            elif text.startswith("0"):
+                return int(text, 8)
+            elif text == "true":
+                return 1
+            elif text == "false":
+                return 0
+            elif text.endswith("k") or text.endswith("kb"):
+                return int(text.split("k")[0]) * 1024
+            elif text.endswith("m") or text.endswith("mb"):
+                return int(text.split("m")[0]) * 1024 * 1024
             else:
-                return int(string)
+                return int(text)
 
         except ValueError, e:
-            print "Str2number error:{0:s}, {1:s}".format(string, e)
+            print "Str2number error:{0:s}, {1:s}".format(text, e)
             return 0
 
     @staticmethod

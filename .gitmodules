@@ -1,0 +1,3 @@
+[submodule "PyAppFramework"]
+	path = PyAppFramework
+	url = git@github.com:amaork/PyAppFramework.git

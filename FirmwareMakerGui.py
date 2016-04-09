@@ -7,6 +7,7 @@ import icon_rc
 from PySide.QtGui import *
 from PySide.QtCore import *
 from fwmaker import FirmwareMaker
+from PyAppFramework.gui.container import ComponentManager
 
 
 class FirmwareMakerGui(QWidget):
@@ -44,13 +45,16 @@ class FirmwareMakerGui(QWidget):
         top_layout.addWidget(self.generate)
 
         group = QGroupBox()
-        self.layout = QGridLayout()
-        group.setLayout(self.layout)
+        group.setProperty("name", "components")
+        group.setLayout(QGridLayout())
 
         layout = QVBoxLayout()
         layout.addLayout(top_layout)
         layout.addWidget(group)
         self.setLayout(layout)
+
+        # Create component manager
+        self.uiManager = ComponentManager(self)
 
         self.def_width = 600
         self.def_height = 120
@@ -83,14 +87,13 @@ class FirmwareMakerGui(QWidget):
         try:
 
             # Remove old elements from layout
-            for idx in range(self.layout.count()):
-                item = self.layout.itemAt(0)
-                if isinstance(item, QLayoutItem):
-                    widget_ = item.widget()
-                    if isinstance(widget_, QWidget):
-                        self.layout.removeWidget(widget_)
-                        widget_.setHidden(True)
-                        del widget_
+            group = self.uiManager.getByValue("name", "components")
+            for item in self.uiManager.getAllComponents(group):
+                layout = self.uiManager.getParentLayout(item)
+                if isinstance(layout, QLayout):
+                    layout.removeWidget(item)
+                    item.setHidden(True)
+                    del item
 
             for idx in range(self.component_list.count()):
                 self.component_list.removeItem(0)
@@ -100,14 +103,8 @@ class FirmwareMakerGui(QWidget):
 
             # According configure add new elements
             for component in configure:
-                name = component.keys()[0]
+                name = component.keys()[0].encode("utf-8")
                 setting = component.get(name)
-                path = setting.get("path")
-                size = setting.get("size")
-                offset = setting.get("offset")
-                size = size if isinstance(size, int) else self.fwmaker.str2number(size)
-                offset = offset if isinstance(offset, int) else self.fwmaker.str2number(offset)
-
                 for idx in range(self.component_list.count()):
                     if self.component_list.itemText(idx) == name:
                         self.component_list.setCurrentIndex(idx)
@@ -117,7 +114,8 @@ class FirmwareMakerGui(QWidget):
                 self.slot_add_component()
 
                 # Setting ui data
-                self.__set_component_setting(name, path, size, offset)
+                if not self.__set_component_setting(name, setting):
+                    print "Setting {0:s} setting error".format(name)
 
         except StandardError, e:
             print "Sync ui error:{0:s}".format(e)
@@ -134,83 +132,38 @@ class FirmwareMakerGui(QWidget):
         self.generate.setEnabled(self.component_list.count() != len(self.fwmaker.DEFAULT_FILE_LIST))
         self.setFixedSize(self.def_width, self.def_height + 40 * (6 - self.component_list.count()))
 
-    def __get_element_id(self, row, column):
-        return row * self.layout.columnCount() + column
-
-    def __get_elements(self, element):
-        try:
-
-            for row in range(self.layout.rowCount()):
-                for column in range(self.layout.columnCount()):
-                    item = self.layout.itemAt(self.__get_element_id(row, column))
-                    if not isinstance(item, QLayoutItem):
-                        continue
-
-                    if item.widget() == element:
-                        name = self.components[row]
-                        elements = [self.layout.itemAt(self.__get_element_id(row, x)).widget()
-                                    for x in range(self.layout.columnCount())]
-
-                        return name, elements
-
-        except StandardError, e:
-            print "Get elements error:{0:s}".format(e)
-            return None, None
-
-        return None, None
-
-    def __get_component_elements(self, component):
-        if component not in self.components:
-            return None
-
-        row = self.components.index(component)
-        return [self.layout.itemAt(self.__get_element_id(row, column)).widget()
-                for column in range(self.layout.columnCount())]
-
     def __get_component_setting(self, component):
         if component not in self.components:
             return None
 
-        try:
+        setting = self.uiManager.getData(component)
 
-            path = None
-            size = None
-            offset = None
-            for element in self.__get_component_elements(component):
-                if isinstance(element, QObject):
-                    tag = element.property("tag")
-                    if tag == "path" and isinstance(element, QLabel):
-                        path = element.property("path")
-                    elif tag == "size" and isinstance(element, QSpinBox):
-                        size = element.value() * 1024
-                    elif tag == "offset" and isinstance(element, QSpinBox):
-                        offset = element.value() * 1024
-
-            return path, size, offset
-
-        except StandardError, e:
-
-            print "Get component setting error:{0:s}".format(e)
+        if setting.get("size"):
+            setting["size"] = "{0:s}k".format(setting.get("size"))
+        else:
             return None
 
-    def __set_component_setting(self, component, path, size, offset):
-        try:
+        if setting.get("offset"):
+            setting["offset"] = "{0:s}k".format(setting.get("offset"))
+        else:
+            return None
 
-            for element in self.__get_component_elements(component):
-                if isinstance(element, QObject):
-                    tag = element.property("tag")
-                    if tag == "path" and isinstance(element, QLabel):
-                        element.setProperty("path", path)
-                    elif tag == "size" and isinstance(element, QSpinBox):
-                        element.setValue(size / 1024)
-                    elif tag == "offset" and isinstance(element, QSpinBox):
-                        element.setValue(offset / 1024)
+        return setting
 
-        except StandardError, e:
-            print "Set component setting error:{0:s}".format(e)
+    def __set_component_setting(self, component, setting):
+        if component not in self.components:
             return False
 
-        return True
+        if not isinstance(setting, dict):
+            return False
+
+        if "size" in setting.keys() and "offset" in setting.keys() and "path" in setting.keys():
+            setting["size"] = self.fwmaker.str2number(setting.get("size")) / 1024
+            setting["offset"] = self.fwmaker.str2number(setting.get("offset")) / 1024
+        else:
+            return False
+
+        return self.uiManager.setData(component, setting)
 
     def __get_current_setting(self):
         configure = list()
@@ -222,16 +175,11 @@ class FirmwareMakerGui(QWidget):
                 QMessageBox.warning(self, self.tr("Warning"), self.tr("Please check {0:s} setting".format(component)))
                 return None
 
-            if not setting[0]:
+            if not setting.get("path"):
                 QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select {0:s} files first".format(component)))
                 return None
 
-            conf = self.fwmaker.generate_configure(component, setting[0], setting[1], setting[2])
-            if not conf:
-                QMessageBox.warning(self, self.tr("Warning"), self.tr("Generate {0:s} configure error".format(component)))
-                return None
-
-            configure.append(conf)
+            configure.append({component: setting})
 
         # Check configure data
         result, error = self.fwmaker.check_configure(configure)
@@ -242,32 +190,47 @@ class FirmwareMakerGui(QWidget):
         return configure
 
     def slot_add_component(self):
-        row = self.layout.rowCount()
-        component = self.component_list.currentText().encode("ascii")
+        groups = self.uiManager.getByValue("name", "components")
+        if not groups:
+            return
+
+        components_layout = groups.layout()
+        if not isinstance(components_layout, QGridLayout):
+            return
+
+        row = components_layout.rowCount()
+        component = self.component_list.currentText().encode("utf-8")
 
         file_label = QLabel(component[0].upper() + component[1:])
-        file_label.setProperty("tag", "path")
+
+        file_path = QLineEdit()
+        file_path.setDisabled(True)
+        file_path.setHidden(True)
+        file_path.setProperty(component, "path")
 
         file_size = QSpinBox()
-        file_size.setProperty("tag", "size")
+        file_size.setProperty(component, "size")
         file_size.setRange(1, self.SINGLE_FILE_MAXSIZE)
         size_label = QLabel("size (KB):")
 
         file_offset = QSpinBox()
-        file_offset.setProperty("tag", "offset")
+        file_offset.setProperty(component, "offset")
         file_offset.setMaximum(self.SINGLE_FILE_MAXSIZE * row)
         offset_label = QLabel("offset (KB)")
 
         select_file = QPushButton("Select file")
         select_file.clicked.connect(self.slot_get_select_file_path)
+        select_file.setProperty("name", component)
+
         remove_file = QPushButton("Remove")
         remove_file.clicked.connect(self.slot_remove_component)
+        remove_file.setProperty("name", component)
 
-        for column, element in enumerate((file_label,
+        for column, element in enumerate((file_label, file_path,
                                           size_label, file_size,
                                           offset_label, file_offset,
                                           select_file, remove_file)):
-            self.layout.addWidget(element, row, column)
+            components_layout.addWidget(element, row, column)
 
         self.components.append(component)
         self.__flush_ui()
@@ -278,7 +241,9 @@ class FirmwareMakerGui(QWidget):
             return
 
         # Get component name and elements
-        name, elements = self.__get_elements(sender)
+        name = sender.property("name").encode("utf-8")
+        layout = self.uiManager.getParentLayout(sender)
+        elements = self.uiManager.findRowSibling(sender)
 
         if not name or not elements:
             return
@@ -286,7 +251,7 @@ class FirmwareMakerGui(QWidget):
         # First remove ui element
         for element in elements:
             element.setHidden(True)
-            self.layout.removeWidget(element)
+            layout.removeWidget(element)
 
         # Re add component to component list
         self.__flush_ui(name)
@@ -331,7 +296,9 @@ class FirmwareMakerGui(QWidget):
         if not isinstance(sender, QPushButton):
             return
 
-        name, elements = self.__get_elements(sender)
+        name = sender.property("name").encode("utf-8")
+        elements = self.uiManager.findRowSibling(sender)
+
         if not name or not elements:
             return
 
@@ -340,17 +307,11 @@ class FirmwareMakerGui(QWidget):
         if not os.path.isfile(path):
             return
         else:
-            file_size = (os.path.getsize(path) / 1024) + 1
+            size = (os.path.getsize(path) / 1024) + 1
 
         # Set file path and size
-        for element in elements:
-            if isinstance(element, QObject):
-                tag = element.property("tag")
-                if tag == "path" and isinstance(element, QLabel):
-                    element.setProperty("path", path)
-                elif tag == "size" and isinstance(element, QSpinBox):
-                    element.setRange(file_size, file_size + self.SINGLE_FILE_MAXSIZE)
-                    element.setValue(file_size)
+        if not self.uiManager.setData(name, {"path": path, "size": size}):
+            print "Set {0:s} size and path error".format(name)
 
     def slot_generate_firmware(self):
         configure = self.__get_current_setting()
